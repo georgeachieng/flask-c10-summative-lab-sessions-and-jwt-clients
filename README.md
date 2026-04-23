@@ -173,3 +173,211 @@ After seeding:
    ```
 
 3. Open the React app and test signup, login, refresh persistence, and logout.
+
+## Endpoint Testing Step by Step
+
+Use this section if you want to prove the backend works by testing the API directly from the terminal.
+
+### 1. Start the backend
+
+From the project root:
+
+```bash
+pipenv install
+pipenv shell
+cd server
+export FLASK_APP=app.py
+flask db upgrade
+python seed.py
+python app.py
+```
+
+The API should now be running at `http://127.0.0.1:5555`.
+
+### 2. Test the root route
+
+Open a second terminal and run:
+
+```bash
+curl http://127.0.0.1:5555/
+```
+
+Expected response:
+
+```json
+{
+  "message": "Productivity API is running."
+}
+```
+
+### 3. Confirm protected routes are blocked before login
+
+Run:
+
+```bash
+curl -i http://127.0.0.1:5555/notes
+```
+
+Expected result:
+
+- Status code: `401 Unauthorized`
+- JSON error response showing login is required
+
+### 4. Log in with a seeded demo user
+
+Use one of the demo accounts created by `python seed.py`.
+
+- Username: `alexdev`
+- Password: `password123`
+
+Run:
+
+```bash
+curl -i -c cookies.txt -X POST http://127.0.0.1:5555/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"alexdev","password":"password123"}'
+```
+
+What this does:
+
+- `-c cookies.txt` saves the session cookie after login
+- The session cookie is what keeps the user authenticated for later requests
+
+Expected result:
+
+- Status code: `200 OK`
+- A JSON response with the logged-in user's details
+
+### 5. Check the active session
+
+Run:
+
+```bash
+curl -b cookies.txt http://127.0.0.1:5555/check_session
+```
+
+What this does:
+
+- `-b cookies.txt` sends the saved session cookie back to the server
+
+Expected result:
+
+- Status code: `200 OK`
+- The currently logged-in user is returned
+
+### 6. Fetch the logged-in user's notes
+
+Run:
+
+```bash
+curl -b cookies.txt http://127.0.0.1:5555/notes
+```
+
+Expected result:
+
+- Status code: `200 OK`
+- A paginated JSON response
+- Only notes belonging to the logged-in user
+
+You can also test pagination:
+
+```bash
+curl -b cookies.txt "http://127.0.0.1:5555/notes?page=1&per_page=2"
+```
+
+### 7. Create a new note
+
+Run:
+
+```bash
+curl -i -b cookies.txt -X POST http://127.0.0.1:5555/notes \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Proof note","content":"Testing the API from curl.","category":"demo"}'
+```
+
+Expected result:
+
+- Status code: `201 Created`
+- JSON for the new note, including its `id`
+
+### 8. Get a single note by ID
+
+Use the `id` returned from the create request above. Example:
+
+```bash
+curl -b cookies.txt http://127.0.0.1:5555/notes/1
+```
+
+Expected result:
+
+- Status code: `200 OK` if the note belongs to the logged-in user
+- Status code: `404 Not Found` if that note does not belong to the logged-in user or does not exist
+
+### 9. Update a note
+
+Run:
+
+```bash
+curl -i -b cookies.txt -X PATCH http://127.0.0.1:5555/notes/1 \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Updated proof note","category":"updated-demo"}'
+```
+
+Expected result:
+
+- Status code: `200 OK`
+- JSON showing the updated note
+
+### 10. Delete a note
+
+Run:
+
+```bash
+curl -i -b cookies.txt -X DELETE http://127.0.0.1:5555/notes/1
+```
+
+Expected result:
+
+- Status code: `200 OK`
+- Empty JSON response
+
+### 11. Log out
+
+Run:
+
+```bash
+curl -i -b cookies.txt -X DELETE http://127.0.0.1:5555/logout
+```
+
+Expected result:
+
+- Status code: `200 OK`
+- Session cleared
+
+### 12. Prove access is removed after logout
+
+Run:
+
+```bash
+curl -i -b cookies.txt http://127.0.0.1:5555/check_session
+curl -i -b cookies.txt http://127.0.0.1:5555/notes
+```
+
+Expected result:
+
+- `GET /check_session` returns `401`
+- `GET /notes` returns `401`
+
+### 13. What to show when proving the app works
+
+If you are demonstrating this app to someone, the simplest proof is:
+
+1. Show the root route responds.
+2. Show `/notes` fails before login.
+3. Log in successfully.
+4. Show `/check_session` returns the user.
+5. Show `/notes` now works.
+6. Create a note.
+7. Update or delete that note.
+8. Log out.
+9. Show `/notes` fails again after logout.
